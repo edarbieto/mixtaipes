@@ -32,9 +32,9 @@
 - [ ] Manually confirm Spotify Desktop accepts a pasted list of `open.spotify.com/track/…` links into a playlist (R8)
 - [ ] Manually confirm the embed player (`open.spotify.com/embed/track/{id}`) plays without login (R13)
 - [ ] Create a Gemini API key; confirm structured-output mode with a 20-track schema
-- [ ] Repository skeleton per ADR-001; `go.mod`, Astro app in `web/`, MIT `LICENSE`, README stub
-- [ ] `compose.yaml` (app + db), multi-stage `Dockerfile`, `/healthz`, `/readyz`
-- [ ] Initial `golang-migrate` migration (`000001_init.up.sql` / `.down.sql`) matching `db-schema.md`; `internal/store` on `pgx/v5`
+- [x] Repository skeleton per ADR-001; `go.mod`, Astro app in `web/`, MIT `LICENSE`, README stub
+- [x] `compose.yaml` (app + db), multi-stage `Dockerfile`, `/healthz`, `/readyz`
+- [x] Initial `golang-migrate` migration (`000001_init.up.sql` / `.down.sql`) matching `db-schema.md`; `internal/store` on `pgx/v5`
 - [ ] CI: vet, lint, test, web build, image build — green on `master` (default branch)
 
 ### W1 · Day 2: LLM + catalog core, prompt v1
