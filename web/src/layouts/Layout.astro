@@ -1,0 +1,33 @@
+---
+interface Props {
+  lang: "en" | "es";
+  title?: string;
+}
+
+const { lang, title = "mixtaipes" } = Astro.props;
+---
+
+<!doctype html>
+<html lang={lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    color-scheme: light dark;
+    font-family: system-ui, sans-serif;
+  }
+  body {
+    margin: 0 auto;
+    max-width: 48rem;
+    padding: 2rem 1rem;
+  }
+</style>

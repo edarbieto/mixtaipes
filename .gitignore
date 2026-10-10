@@ -1,0 +1,9 @@
+# Build output
+/bin/
+/web/dist/*
+!/web/dist/.gitkeep
+/web/.astro/
+/web/node_modules/
+
+# Local configuration
+.env
