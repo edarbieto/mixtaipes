@@ -36,7 +36,8 @@ Stack details:
 | Migrations | `golang-migrate` (`iofs` source + `pgx/v5` database driver), SQL files embedded and applied at startup |
 | Frontend | Astro `output: "static"`; one React island for the mixtape UI; Tailwind optional |
 | SPA routes | The Go static handler serves `m/index.html` for `/m/{slug}` (and the `/es/` equivalent) |
-| Image | Multi-stage Dockerfile: Node build → Go build → distroless runtime |
+| Toolchain | Go 1.27, Node 24 LTS, golangci-lint v2; developer tooling (`go`, `npm`, `golangci-lint`) runs in containers via the Makefile — the host needs only Docker and make |
+| Image | Multi-stage Dockerfile: `node:24-alpine` build → `golang:1.27-alpine` build → `distroless/static-debian13:nonroot` runtime |
 | Compose | `app` (port bound to `127.0.0.1:8080`) + `db` (named volume) |
 | TLS | Terminated by a host-level reverse proxy; out of the compose file |
 | Backups | Nightly `pg_dump` from the host scheduler to a local directory (documented in README) |

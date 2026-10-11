@@ -1,6 +1,6 @@
 module github.com/edarbieto/mixtaipes
 
-go 1.25.11
+go 1.27
 
 require (
 	github.com/golang-migrate/migrate/v4 v4.20.1

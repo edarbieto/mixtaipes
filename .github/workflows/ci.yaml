@@ -28,14 +28,14 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://mixtaipes:mixtaipes@localhost:5432/mixtaipes?sslmode=disable
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go vet ./...
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
+          version: v2.14.0 # keep in sync with LINT_IMAGE in the Makefile
       - run: go test -race ./...
 
   web:
@@ -44,8 +44,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -57,5 +57,5 @@ jobs:
     needs: [go, web]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: docker build -t mixtaipes:ci .
