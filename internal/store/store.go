@@ -29,7 +29,7 @@ func Open(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 }
 
 // Migrate applies all pending up migrations embedded in the binary.
-func Migrate(databaseURL string) error {
+func Migrate(databaseURL string) (err error) {
 	src, err := iofs.New(migrations.FS, ".")
 	if err != nil {
 		return fmt.Errorf("load migrations: %w", err)
@@ -38,7 +38,10 @@ func Migrate(databaseURL string) error {
 	if err != nil {
 		return fmt.Errorf("init migrate: %w", err)
 	}
-	defer m.Close()
+	defer func() {
+		srcErr, dbErr := m.Close()
+		err = errors.Join(err, srcErr, dbErr)
+	}()
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		return fmt.Errorf("apply migrations: %w", err)
 	}

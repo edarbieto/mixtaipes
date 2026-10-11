@@ -15,13 +15,17 @@
 
 ## Commands
 
+All tooling runs in containers; the host only needs Docker and make. Image versions are pinned at the top of the `Makefile` (keep the CI workflow and `Dockerfile` in sync).
+
 | Command | Purpose |
 |---------|---------|
 | `make dev-db` | Start PostgreSQL in Docker |
 | `make run` | Run the Go server with `.env` |
+| `make fmt` / `make tidy` | `go fmt` / `go mod tidy` |
 | `make web` | Astro dev server (hot reload) |
 | `make test` | Go tests (`TEST_DATABASE_URL` enables database tests) |
-| `make lint` | `go vet` + `golangci-lint` if installed |
+| `make vet` / `make lint` | `go vet` / `golangci-lint` |
+| `make check` | vet + lint + test |
 | `make build` | Frontend build + Go binary in `bin/` |
 | `make up` / `make down` | Full stack with Docker Compose |
 

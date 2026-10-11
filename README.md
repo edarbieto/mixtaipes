@@ -20,14 +20,14 @@ Open http://localhost:8080.
 
 ## Development
 
-Requirements: Go 1.25+, Node 24+, Docker.
+Requirements: Docker and make. Go, Node and linters run in containers (`golang:1.27`, `node:24`, `golangci-lint`); nothing else is installed on the host. Database access from tool containers uses host networking (Linux).
 
 ```sh
 cp .env.example .env
 make dev-db     # PostgreSQL in Docker
-make run        # Go server on the host (applies migrations at startup)
+make run        # Go server (applies migrations at startup)
 make web        # Astro dev server with hot reload, proxying /v1 to the Go server
-make test lint
+make check      # vet + lint + test
 ```
 
 ## Documentation
