@@ -107,6 +107,7 @@ The reverse proxy is not part of the compose file: any TLS-terminating proxy tha
 | `internal/catalog` | `Catalog` interface, Spotify adapter (token, search, matching) |
 | `internal/store` | Hand-written SQL over `pgx/v5` (`pgxpool`), row mapping with `pgx.CollectRows`, transactions |
 | `internal/metrics` | Prometheus collectors |
+| `prompts` | Versioned system prompts (embedded) and the request builder; never imports `catalog` (ADR-007) |
 
 ## Core flow — one turn (generate or refine)
 
