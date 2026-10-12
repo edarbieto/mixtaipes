@@ -5,5 +5,8 @@
 /web/.astro/
 /web/node_modules/
 
+# Evaluation runs (summaries go into pull requests)
+/evals/results/
+
 # Local configuration
 .env

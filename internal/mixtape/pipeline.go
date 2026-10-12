@@ -25,7 +25,9 @@ type Outcome struct {
 	// Tracks is the final, deduplicated list; empty unless Playlist is ok.
 	Tracks []Track
 	// LLM sums the main and backfill calls.
-	LLM            llm.Usage
+	LLM llm.Usage
+	// GenerateCalls counts the main call's attempts; 1 means valid on the first try.
+	GenerateCalls  int
 	CatalogLatency time.Duration
 	// Requested is the number of tracks the main call proposed.
 	Requested int
@@ -60,7 +62,7 @@ type Pipeline struct {
 // Outcome still carries the LLM usage for quota accounting.
 func (p Pipeline) Run(ctx context.Context, market string, req llm.Request) (Outcome, error) {
 	res, err := llm.GeneratePlaylist(ctx, p.LLM, req)
-	out := Outcome{Playlist: res.Playlist, LLM: res.Usage}
+	out := Outcome{Playlist: res.Playlist, LLM: res.Usage, GenerateCalls: res.Calls}
 	if err != nil || res.Playlist.Status != llm.StatusOK {
 		return out, err
 	}

@@ -100,7 +100,7 @@ func TestRunAllMatched(t *testing.T) {
 	if got := summary(out); got != "a:1 b:2" {
 		t.Errorf("tracks = %s", got)
 	}
-	if len(l.requests) != 1 || out.LLM.Calls != 1 || len(c.batches) != 1 {
+	if len(l.requests) != 1 || out.LLM.Calls != 1 || out.GenerateCalls != 1 || len(c.batches) != 1 {
 		t.Errorf("llm requests = %d, calls = %d, catalog batches = %d", len(l.requests), out.LLM.Calls, len(c.batches))
 	}
 	if out.Requested != 2 || out.MatchedBeforeBackfill != 2 || out.Matched() != 2 {
@@ -126,7 +126,7 @@ func TestRunBackfill(t *testing.T) {
 	if out.Requested != 4 || out.MatchedBeforeBackfill != 3 || out.Duplicates != 1 || out.Matched() != 3 {
 		t.Errorf("stats: requested %d, before %d, dups %d, matched %d", out.Requested, out.MatchedBeforeBackfill, out.Duplicates, out.Matched())
 	}
-	if out.LLM.Calls != 2 || len(c.batches) != 2 {
+	if out.LLM.Calls != 2 || out.GenerateCalls != 1 || len(c.batches) != 2 {
 		t.Errorf("llm calls = %d, catalog batches = %d", out.LLM.Calls, len(c.batches))
 	}
 

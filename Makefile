@@ -14,7 +14,7 @@ GO_ENV     := -e GOCACHE=/cache/go-build -e GOMODCACHE=/cache/go-mod \
 GO         := $(DOCKER_RUN) $(GO_ENV) $(GO_IMAGE) go
 NPM        := $(DOCKER_RUN) -e npm_config_cache=/cache/npm -w /src/web $(NODE_IMAGE) npm
 
-.PHONY: dev-db run web web-build fmt vet test lint tidy check build up down
+.PHONY: dev-db run web web-build fmt vet test lint tidy check eval build up down
 
 $(CACHE):
 	mkdir -p $@
@@ -55,6 +55,11 @@ tidy: | $(CACHE)
 	$(GO) mod tidy
 
 check: vet lint test
+
+# Prompt evaluation against the real Gemini and Spotify APIs with .env
+# credentials (ADR-005). Spends quota; e.g. EVALFLAGS="-only refine".
+eval: | $(CACHE)
+	$(DOCKER_RUN) $(GO_ENV) --env-file .env $(GO_IMAGE) go run ./cmd/eval $(EVALFLAGS)
 
 build: web-build
 	$(DOCKER_RUN) $(GO_ENV) -e CGO_ENABLED=0 $(GO_IMAGE) go build -trimpath -o bin/mixtaipes ./cmd/mixtaipes
