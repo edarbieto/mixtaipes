@@ -2,7 +2,7 @@
 
 > Milestones toward a public instance where anyone can turn a sentence into a verified, copyable playlist.
 > Tasks are checkbox-tracked. The MVP is a one-week sprint; W1 is broken down by day.
-> Status: v1 (M0) — Last updated: 2026-10-10
+> Status: v1 (M0) — Last updated: 2026-10-12
 
 ## Now / Next / Later
 
@@ -46,20 +46,22 @@
 - [ ] First evaluation run of v1 recorded
 
 ### W1 · Day 3: API and persistence
-- [ ] `POST /v1/mixtapes`, `POST /v1/mixtapes/{id}/turns`, `GET /v1/mixtapes`, `GET /v1/mixtapes/{id}` per contract
+- [ ] `POST /v1/mixtapes`, `POST /v1/mixtapes/{id}/turns` (`202` + pending turn), `GET /v1/mixtapes`, `GET /v1/mixtapes/{id}` per contract
+- [ ] Turn workers (ADR-015): migration `000002` (turn states, lease, progress), claim with `FOR UPDATE SKIP LOCKED`, lease reclaim, backoff retries on LLM overload/timeout, progress updates, graceful shutdown
 - [ ] Refinement context builder (original request + prior refinements + latest `llm_output`) (ADR-008)
 - [ ] Client cookie middleware with hashed storage; ownership checks; JSON content-type guard (ADR-010)
 - [ ] Per-IP token bucket with trusted-proxy handling; daily LLM-call cap; `Retry-After`
 - [ ] Market resolution from `Accept-Language` region with `SPOTIFY_MARKET` fallback (ADR-006), with table-driven tests
 - [ ] `POST /v1/events`; failed turns persisted with `llm_calls` for accounting
-- [ ] Handler tests with fake `Provider` and fake `Catalog`
+- [ ] Handler and worker tests with fake `Provider` and fake `Catalog` (retry, reclaim, `TURN_IN_PROGRESS`)
 
 ### W1 · Day 4: Frontend core
-- [ ] Astro layout + React island: prompt box, loading state, track list with "why"
+- [ ] Astro layout + React island: prompt box, track list with "why"
+- [ ] Pending turn: poll `GET /v1/mixtapes/{id}` every ~1 s with progress ("matching 12/20"), stop on a final status or after 2 min (ADR-015)
 - [ ] Suggested-refinement chips and refinement input
 - [ ] Per-track play button loading one embed iframe at a time (ADR-009)
 - [ ] "Copy for Spotify" button + inline paste guide; desktop/mobile messaging
-- [ ] Localized refusal and error states from `refusal_reason` / `error.code`
+- [ ] Localized refusal and error states from `refusal_reason`, `turn.error_code` and `error.code`
 - [ ] Mixtape list (this browser's history)
 
 ### W1 · Day 5: Sharing, i18n, metrics, PWA shell
@@ -95,6 +97,7 @@
 - [ ] "Under the hood" panel: model, prompt version, tokens, latencies, match rate per turn
 - [ ] Prompt v-next driven by production `turn_match_ratio` and refusal data; evaluation set grown to ~50 cases
 - [ ] Grafana dashboard JSON in `deploy/grafana/`
+- [ ] Queue metrics (turn wait time, pending depth, retries); SSE for turn progress only if polling load warrants it (ADR-015 revisit trigger)
 - [ ] Review LLM quota usage; decide on a paid tier (ADR-003 revisit trigger)
 
 ## M3 — Growth options (later)
