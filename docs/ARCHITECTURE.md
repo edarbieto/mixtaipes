@@ -163,6 +163,7 @@ sequenceDiagram
 | `PUBLIC_BASE_URL` | — | Absolute base URL for share links |
 | `HTTP_ADDR` / `METRICS_ADDR` | `:8080` / `:9090` | Listeners |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — / Flash-class model | LLM provider |
+| `GEMINI_FALLBACK_MODEL` | — (retry on the same model) | Model used for the single retry after an overload error (ADR-003) |
 | `PROMPT_VERSION` | latest file in `prompts/` | Active system prompt |
 | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | — | Client-credentials flow |
 | `SPOTIFY_MARKET` | `US` | Fallback ISO 3166-1 alpha-2 market when `Accept-Language` has no usable region |

@@ -1,7 +1,7 @@
 # Risk Register — mixtaipes
 
 > Identified risks, impact, likelihood, mitigations.
-> Status: v1 (M0) — Last updated: 2026-10-10
+> Status: v1 (M0) — Last updated: 2026-10-12
 
 ## Register
 
@@ -24,6 +24,7 @@
 | R15 | **Spotify rate limits (429) under concurrent use** | Medium | Medium | Per-IP limits bound concurrency; honor `Retry-After` once; `catalog_search_total{result="rate_limited"}` metric; ADR-006 revisit at > 1 % | Maintainer | Open |
 | R16 | **Unbounded database growth** with indefinite retention | Low | Low | Retention job ready behind `RETENTION_DAYS` (ADR-014); enable at 5 GB | Maintainer | Accepted |
 | R17 | **Offensive LLM-generated titles reachable via share links** | Medium | Low | Provider safety filters, guardrail prompt, length limits, `noindex`, no public listing of shares | Maintainer | Open |
+| R18 | **LLM provider overloaded** (HTTP 503 "high demand" observed repeatedly on Flash-class models during Day 1 checks) | Medium | High | One delayed retry on overload, optionally on `GEMINI_FALLBACK_MODEL` (ADR-003); typed `LLM_UNAVAILABLE` with a localized "try again" state; failure reason recorded for metrics | Maintainer | Open |
 
 Status values: Open / Mitigated / Closed / Accepted.
 
@@ -31,7 +32,7 @@ Status values: Open / Mitigated / Closed / Accepted.
 
 | Likelihood ↓ / Impact → | Low | Medium | High |
 |-------------------------|-----|--------|------|
-| **High** | | R4, R6, R9, R11 | R3, R5 |
+| **High** | | R4, R6, R9, R11, R18 | R3, R5 |
 | **Medium** | R13 | R14, R15 | R1, R10 |
 | **Low** | R16 | R12, R17 | R2, R7, R8 |
 
