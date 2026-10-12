@@ -28,14 +28,14 @@
 ### W1 · Day 1: Foundations and unknowns
 - [x] Contracts drafted: `docs/contracts/api.md`, `docs/contracts/db-schema.md`
 - [x] ADR-001 … ADR-014 accepted
-- [ ] Create the Spotify app (Development Mode); confirm the client-credentials flow and `GET /v1/search` work for it — **#1 technical unknown** (R1)
-- [ ] Manually confirm Spotify Desktop accepts a pasted list of `open.spotify.com/track/…` links into a playlist (R8)
-- [ ] Manually confirm the embed player (`open.spotify.com/embed/track/{id}`) plays without login (R13)
-- [ ] Create a Gemini API key; confirm structured-output mode with a 20-track schema
+- [x] Create the Spotify app (Development Mode); confirm the client-credentials flow and `GET /v1/search` work for it — **#1 technical unknown** (R1)
+- [x] Manually confirm Spotify Desktop accepts a pasted list of `open.spotify.com/track/…` links into a playlist (R8) — also works in the web player; mobile apps not supported
+- [x] Manually confirm the embed player (`open.spotify.com/embed/track/{id}`) plays without login (R13)
+- [x] Create a Gemini API key; confirm structured-output mode with a 20-track schema
 - [x] Repository skeleton per ADR-001; `go.mod`, Astro app in `web/`, MIT `LICENSE`, README stub
 - [x] `compose.yaml` (app + db), multi-stage `Dockerfile`, `/healthz`, `/readyz`
 - [x] Initial `golang-migrate` migration (`000001_init.up.sql` / `.down.sql`) matching `db-schema.md`; `internal/store` on `pgx/v5`
-- [ ] CI: vet, lint, test, web build, image build — green on `master` (default branch)
+- [x] CI: vet, lint, test, web build, image build — green on `master` (default branch)
 
 ### W1 · Day 2: LLM + catalog core, prompt v1
 - [ ] `llm.Provider` + Gemini adapter with schema, validation and single retry (ADR-003)
