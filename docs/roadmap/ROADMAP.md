@@ -40,7 +40,7 @@
 ### W1 · Day 2: LLM + catalog core, prompt v1
 - [x] `llm.Provider` + Gemini adapter with schema, validation and single retry (ADR-003)
 - [x] `prompts/v1.md`: role, schema, count rules (20 default, ≤ 30), diversity, locale, refusals, delimited input (ADR-004)
-- [ ] `catalog.Catalog` + Spotify adapter: token cache, field-filtered search, fallback query, normalization + fuzzy match, concurrency 5, 429 handling (ADR-006)
+- [x] `catalog.Catalog` + Spotify adapter: token cache, field-filtered search, fallback query, normalization + fuzzy match, concurrency 5, 429 handling (ADR-006)
 - [ ] Backfill round for misses using only LLM text (ADR-007), with an import-boundary test
 - [ ] `evals/cases.yaml` with ~25 cases; `cmd/eval` printing the ADR-005 metrics
 - [ ] First evaluation run of v1 recorded

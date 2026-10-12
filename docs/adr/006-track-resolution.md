@@ -29,11 +29,11 @@ Chosen option: **A**, because it guarantees playable tracks with bounded latency
 
 Algorithm:
 
-1. **Token**: client-credentials access token, cached in memory until shortly before expiry.
+1. **Token**: client-credentials access token, cached in memory until shortly before expiry; fetched again once if a search returns HTTP 401.
 2. **Query**: `GET /v1/search?type=track&limit=5&market={SPOTIFY_MARKET}&q=track:"{title}" artist:"{artist}"`.
 3. **Match**: normalize both sides (lowercase, strip accents, drop bracketed suffixes such as "Remastered 2011", "feat. X", "- Live"). Accept the first result where some artist equals the proposed artist after normalization **and** title similarity ≥ 0.85 (normalized Levenshtein ratio).
 4. **Fallback**: if nothing matches, one unfiltered query `q={artist} {title}` with the same matching rule.
-5. **Concurrency**: up to 5 searches in flight; on HTTP 429 honor `Retry-After` once, then mark as miss.
+5. **Concurrency**: up to 5 searches in flight; on HTTP 429 honor `Retry-After` once, then mark as miss. A `Retry-After` longer than 5 s marks the track as a miss right away, since waiting would break the turn's latency budget (amended 2026-10-12). The turn fails with `CATALOG_UNAVAILABLE` only when no token can be obtained or every search failed.
 6. **Dedup**: drop tracks whose Spotify id already appears in the playlist.
 7. **Backfill**: if any misses remain, one more LLM call asks for exactly that many replacements, listing the missed tracks (as the LLM wrote them) to avoid. Replacements go through steps 2–6 once. Remaining misses are kept and shown as "not found" (not copyable).
 

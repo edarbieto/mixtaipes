@@ -24,13 +24,14 @@ var (
 	leadingThe = regexp.MustCompile(`^the\s+`)
 )
 
-var stripMarks = transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
 
 // apostrophes are removed rather than split on, so "Can't" equals "Cant".
 var apostrophes = strings.NewReplacer("'", "", "’", "", "`", "")
 
 // normalize lowercases, strips accents and punctuation, and collapses spaces.
 func normalize(s string) string {
+	// A transform.Chain keeps internal state, so it cannot be shared across goroutines.
+	stripMarks := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
 	if t, _, err := transform.String(stripMarks, s); err == nil {
 		s = t
 	}

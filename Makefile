@@ -42,10 +42,11 @@ vet: | $(CACHE)
 	$(GO) vet ./...
 
 # Database tests run when TEST_DATABASE_URL is set, e.g. after `make dev-db`.
-# Live LLM tests run with LIVE_TESTS=1 and GEMINI_API_KEY (they spend quota).
+# Live tests run with LIVE_TESTS=1 and the Gemini/Spotify credentials (they spend quota).
 test: | $(CACHE)
 	$(DOCKER_RUN) $(GO_ENV) -e TEST_DATABASE_URL -e LIVE_TESTS -e GEMINI_API_KEY -e GEMINI_MODEL \
-		-e GEMINI_FALLBACK_MODEL $(GO_IMAGE) go test ./... $(TESTFLAGS)
+		-e GEMINI_FALLBACK_MODEL -e SPOTIFY_CLIENT_ID -e SPOTIFY_CLIENT_SECRET -e SPOTIFY_MARKET \
+		$(GO_IMAGE) go test ./... $(TESTFLAGS)
 
 lint: | $(CACHE)
 	$(DOCKER_RUN) $(GO_ENV) $(LINT_IMAGE) golangci-lint run
