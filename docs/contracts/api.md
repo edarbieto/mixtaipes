@@ -2,7 +2,7 @@
 
 > Source of truth for the public API surface. OpenAPI 3.1 first: every
 > documented endpoint gets its schema entry (`docs/contracts/openapi.yaml`) in the same change.
-> Status: v1 (M0) — Last updated: 2026-10-10
+> Status: v1 (M0) — Last updated: 2026-10-12
 
 ## Conventions
 
@@ -19,10 +19,10 @@
 
 | Method | Path | Purpose | Auth |
 |--------|------|---------|------|
-| POST | /v1/mixtapes | Create a mixtape and run its first turn | client cookie (issued if absent) |
+| POST | /v1/mixtapes | Create a mixtape and queue its first turn | client cookie (issued if absent) |
 | GET | /v1/mixtapes | List the client's mixtapes (latest 50, summary only) | client cookie |
-| GET | /v1/mixtapes/{id} | Get a mixtape with all its turns and tracks | owner |
-| POST | /v1/mixtapes/{id}/turns | Refine: run a new turn | owner |
+| GET | /v1/mixtapes/{id} | Get a mixtape with all its turns and tracks; polled while a turn runs | owner |
+| POST | /v1/mixtapes/{id}/turns | Refine: queue a new turn | owner |
 | POST | /v1/mixtapes/{id}/turns/{seq}/share | Create (or return) the share link for a turn | owner |
 | GET | /v1/shares/{slug} | Read a shared playlist version | public |
 | POST | /v1/events | Record a product event (copy, preview_play) | client cookie |
@@ -41,7 +41,7 @@ Request:
 - `prompt`: 1–500 characters, required.
 - `locale`: `en` | `es`, required.
 
-Response `201 Created` — a `Mixtape` with one turn:
+Response `202 Accepted` — a `Mixtape` with one `pending` turn (turns run asynchronously, ADR-015):
 
 ```json
 {
@@ -55,7 +55,21 @@ Response `201 Created` — a `Mixtape` with one turn:
 
 `market` is resolved server-side from the `Accept-Language` region, falling back to `SPOTIFY_MARKET` (ADR-006); it is fixed for the mixtape's lifetime.
 
-A refused prompt is **not** an error: it returns `201` with a turn whose `status` is `refused`.
+Errors: `VALIDATION_FAILED`, `PROMPT_TOO_LONG`, `RATE_LIMITED`, `DAILY_CAP_REACHED`.
+
+A refused prompt is **not** an error: the turn ends with `status = refused`.
+
+### Turn lifecycle and polling
+
+Turns are executed by background workers (ADR-015):
+
+```
+pending ──▶ running ──▶ ok | refused | failed
+   ▲           │
+   └── retry ──┘   (provider overload, with backoff)
+```
+
+While the latest turn is `pending` or `running`, the client polls `GET /v1/mixtapes/{id}` about once per second, renders `progress`, and stops when the turn reaches `ok`, `refused` or `failed` (or after 2 minutes). Turn failures are reported in the turn (`status = failed`, `error_code`), not as HTTP errors.
 
 ### Turn object
 
@@ -65,6 +79,8 @@ A refused prompt is **not** an error: it returns `201` with a turn whose `status
   "prompt": "music for driving at night in the rain",
   "status": "ok",
   "refusal_reason": null,
+  "error_code": null,
+  "progress": null,
   "title": "Wet Asphalt, Low Beams",
   "description": "Moody synths and trip-hop for empty streets after midnight.",
   "suggestions": ["more melancholic", "add some 90s rock", "fewer vocals"],
@@ -100,7 +116,10 @@ A refused prompt is **not** an error: it returns `201` with a turn whose `status
 }
 ```
 
-- `status`: `ok` | `refused` | `failed`.
+- `status`: `pending` | `running` | `ok` | `refused` | `failed`.
+- `error_code`: a turn error code (see below) when `status` is `failed`, else `null`.
+- `progress`: `{ "phase": "generating" | "matching" | "backfilling", "done": 12, "total": 20 }` while `pending`/`running` (`phase` is `null` while `pending`); `null` once finished. `done`/`total` count verified tracks during `matching` and `backfilling`.
+- `stats`: `null` until the turn finishes.
 - `refusal_reason`: `off_topic` | `unsafe` | `unclear` | `null`.
 - `match_status`: `matched` | `not_found`.
 - `title`, `description`, `tracks`, `suggestions` are empty/null when `status` ≠ `ok`.
@@ -109,8 +128,8 @@ A refused prompt is **not** an error: it returns `201` with a turn whose `status
 ### POST /v1/mixtapes/{id}/turns
 
 Request: `{ "prompt": "make it more melancholic" }` (1–500 characters). The mixtape's `locale` is used.
-Response `201 Created`: the new `Turn`.
-Errors: `MIXTAPE_NOT_FOUND`, `TURN_LIMIT_REACHED`, `RATE_LIMITED`, `DAILY_CAP_REACHED`, `LLM_*`, `CATALOG_UNAVAILABLE`.
+Response `202 Accepted`: the new `pending` `Turn`.
+Errors: `VALIDATION_FAILED`, `PROMPT_TOO_LONG`, `MIXTAPE_NOT_FOUND`, `TURN_LIMIT_REACHED`, `TURN_IN_PROGRESS`, `RATE_LIMITED`, `DAILY_CAP_REACHED`.
 
 ### GET /v1/mixtapes
 
@@ -148,12 +167,20 @@ Response `204 No Content`. Unknown types → `VALIDATION_FAILED`.
 | 404 | SHARE_NOT_FOUND | Unknown share slug |
 | 409 | TURN_LIMIT_REACHED | Mixtape already has 20 turns |
 | 409 | TURN_NOT_SHAREABLE | Turn status is not `ok` |
+| 409 | TURN_IN_PROGRESS | The mixtape's latest turn is still `pending` or `running` |
 | 415 | UNSUPPORTED_MEDIA_TYPE | Mutating request without `application/json` |
 | 429 | RATE_LIMITED | Per-IP limit hit; see `Retry-After` |
 | 429 | DAILY_CAP_REACHED | Global daily LLM-call cap hit; `Retry-After` = seconds to next UTC day |
-| 502 | LLM_UNAVAILABLE | Provider error or timeout |
-| 502 | LLM_INVALID_OUTPUT | Output failed schema validation twice |
-| 502 | CATALOG_UNAVAILABLE | Spotify token or search failed for the whole turn |
 | 500 | INTERNAL | Unexpected server error |
 
-When a turn fails with a 5xx after the LLM was called, the turn is persisted with `status = failed` (it counts toward `llm_calls`) so quota accounting stays correct.
+### Turn error codes (`turn.error_code`)
+
+| error_code | Meaning |
+|------------|---------|
+| LLM_UNAVAILABLE | Provider error, overload or timeout after the retries of ADR-015 |
+| LLM_INVALID_OUTPUT | Output failed schema validation twice |
+| CATALOG_UNAVAILABLE | Spotify token or search failed for the whole turn |
+| DAILY_CAP_REACHED | The daily LLM-call cap was hit while the turn was queued |
+| INTERNAL | Unexpected worker error |
+
+A failed turn keeps its `llm_calls`, so quota accounting stays correct.

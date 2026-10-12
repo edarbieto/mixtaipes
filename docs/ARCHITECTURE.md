@@ -1,7 +1,7 @@
 # Architecture — mixtaipes
 
 > C4 Level 1 (System Context) and Level 2 (Containers), plus the core request flow.
-> Status: v1 (M0) — Last updated: 2026-10-10
+> Status: v1 (M0) — Last updated: 2026-10-12
 
 ## Principles
 
@@ -56,6 +56,7 @@ flowchart TB
             api["/v1 JSON API<br/>client cookie, rate limit"]
             health["/healthz, /readyz"]
             svc["mixtape service"]
+            workers["turn workers<br/>(PostgreSQL queue)"]
             prompt["prompt builder<br/>(prompts/*.md, embedded)"]
             llm["llm.Provider<br/>Gemini adapter"]
             cat["catalog.Catalog<br/>Spotify adapter"]
@@ -74,6 +75,9 @@ flowchart TB
     proxy --> api
     proxy --> health
     api --> svc
+    svc -- "enqueue turn" --> db
+    workers -- "claim (SKIP LOCKED)" --> db
+    workers --> svc
     svc --> prompt
     prompt --> llm
     llm --> gemini
@@ -87,7 +91,7 @@ flowchart TB
 
 | Container | Technology | Responsibility |
 |-----------|------------|----------------|
-| `app` | Go binary, distroless image | Serves the static UI and the `/v1` API, runs migrations at startup, orchestrates LLM + catalog, exposes metrics on an internal port |
+| `app` | Go binary, distroless image | Serves the static UI and the `/v1` API, runs migrations at startup, runs turn workers that orchestrate LLM + catalog (ADR-015), exposes metrics on an internal port |
 | `db` | PostgreSQL 16 | Mixtapes, turns, tracks, shares, events |
 | `prometheus` *(optional)* | Prometheus | Scrapes `app:9090/metrics` |
 | `grafana` *(optional)* | Grafana | Dashboards over Prometheus |
@@ -102,7 +106,7 @@ The reverse proxy is not part of the compose file: any TLS-terminating proxy tha
 | `cmd/eval` | Prompt evaluation runner (ADR-005) |
 | `internal/config` | Environment-based configuration |
 | `internal/httpapi` | Handlers, middleware (client cookie, rate limit, request logging), static file serving |
-| `internal/mixtape` | Domain service: generate, refine, backfill, share |
+| `internal/mixtape` | Domain service: enqueue and run turns (workers, ADR-015), generate, refine, backfill, share |
 | `internal/llm` | `Provider` interface, Gemini adapter, output schema + validation |
 | `internal/catalog` | `Catalog` interface, Spotify adapter (token, search, matching) |
 | `internal/store` | Hand-written SQL over `pgx/v5` (`pgxpool`), row mapping with `pgx.CollectRows`, transactions |
@@ -110,36 +114,46 @@ The reverse proxy is not part of the compose file: any TLS-terminating proxy tha
 
 ## Core flow — one turn (generate or refine)
 
+Turns run asynchronously (ADR-015): the API queues them in PostgreSQL and in-process workers execute them while the browser polls.
+
 ```mermaid
 sequenceDiagram
     autonumber
     participant B as Browser
-    participant A as app (httpapi + mixtape)
+    participant A as app API (httpapi)
+    participant W as app turn worker (mixtape)
     participant G as Gemini
     participant S as Spotify
     participant P as PostgreSQL
 
     B->>A: POST /v1/mixtapes/{id}/turns
     A->>A: per-IP rate limit + daily LLM-call cap
-    A->>P: load prior prompts + latest llm_output
-    A->>G: wrapped prompt (system + context + user_request)
-    G-->>A: playlist JSON (schema-validated)
-    alt status = refused
-        A->>P: persist refused turn
-        A-->>B: 201 Turn (refused)
+    A->>P: insert turn (status = pending)
+    A-->>B: 202 Turn (pending)
+    W->>P: claim due turn (FOR UPDATE SKIP LOCKED), status = running
+    W->>P: load prior prompts + latest llm_output
+    W->>G: wrapped prompt (system + context + user_request)
+    alt provider overloaded or timed out
+        W->>P: status = pending, run_after = now() + backoff
+    else status = refused
+        W->>P: persist refused turn
     else status = ok
         loop each track, up to 5 concurrent
-            A->>S: search (artist, title, market)
-            S-->>A: candidates, then match or miss
+            W->>S: search (artist, title, market)
+            S-->>W: candidates, then match or miss
+            W->>P: progress (matched / total)
         end
         opt misses remain
-            A->>G: backfill request (LLM's own text only)
-            G-->>A: replacement tracks
-            A->>S: search replacements
-            S-->>A: match or miss
+            W->>G: backfill request (LLM's own text only)
+            G-->>W: replacement tracks
+            W->>S: search replacements
         end
-        A->>P: persist turn + tracks
-        A-->>B: 201 Turn
+        W->>P: persist turn + tracks (status = ok)
+    end
+    loop every ~1 s until ok / refused / failed
+        B->>A: GET /v1/mixtapes/{id}
+        A->>P: read mixtape + turns
+        A-->>B: 200 Mixtape (turn status + progress)
     end
 ```
 
@@ -151,6 +165,7 @@ sequenceDiagram
 | Prompt quality | Evaluation harness with tracked metrics per prompt version | 005 |
 | Spotify policy | LLM receives only its own previous output and a not-found flag | 007 |
 | Abuse / quota | Per-IP token bucket + global daily LLM-call cap | 010 |
+| Provider overloads, long turns | Asynchronous turns: PostgreSQL queue, backoff retries, client polling with progress | 015 |
 | Privacy | Anonymous cookie, hashed client id, privacy notice on the LLM provider's data terms | 010, 014 |
 | Observability | Prometheus metrics on an internal port | 013 |
 | Localization | Astro i18n routes (`/`, `/es/`), locale passed to the LLM | 012 |
@@ -168,5 +183,6 @@ sequenceDiagram
 | `SPOTIFY_MARKET` | `US` | Fallback ISO 3166-1 alpha-2 market when `Accept-Language` has no usable region |
 | `RATE_LIMIT_PER_IP` | `10/h` | Turns per client IP |
 | `DAILY_LLM_CALL_CAP` | `400` | Global LLM calls per UTC day |
+| `TURN_WORKERS` | `2` | Concurrent turn workers (bounded by the provider's rate limit) |
 | `TRUSTED_PROXIES` | loopback + private ranges | Sources allowed to set `X-Forwarded-For` (a host proxy reaches the container through the Docker bridge, not loopback) |
 | `RETENTION_DAYS` | `0` (disabled) | Retention job threshold |
