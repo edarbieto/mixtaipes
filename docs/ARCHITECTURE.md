@@ -107,6 +107,7 @@ The reverse proxy is not part of the compose file: any TLS-terminating proxy tha
 | `internal/catalog` | `Catalog` interface, Spotify adapter (token, search, matching) |
 | `internal/store` | Hand-written SQL over `pgx/v5` (`pgxpool`), row mapping with `pgx.CollectRows`, transactions |
 | `internal/metrics` | Prometheus collectors |
+| `prompts` | Versioned system prompts (embedded) and the request builder; never imports `catalog` (ADR-007) |
 
 ## Core flow — one turn (generate or refine)
 
@@ -163,6 +164,7 @@ sequenceDiagram
 | `PUBLIC_BASE_URL` | — | Absolute base URL for share links |
 | `HTTP_ADDR` / `METRICS_ADDR` | `:8080` / `:9090` | Listeners |
 | `GEMINI_API_KEY` / `GEMINI_MODEL` | — / Flash-class model | LLM provider |
+| `GEMINI_FALLBACK_MODEL` | — (retry on the same model) | Model used for the single retry after an overload error (ADR-003) |
 | `PROMPT_VERSION` | latest file in `prompts/` | Active system prompt |
 | `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | — | Client-credentials flow |
 | `SPOTIFY_MARKET` | `US` | Fallback ISO 3166-1 alpha-2 market when `Accept-Language` has no usable region |

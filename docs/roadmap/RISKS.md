@@ -1,7 +1,7 @@
 # Risk Register — mixtaipes
 
 > Identified risks, impact, likelihood, mitigations.
-> Status: v1 (M0) — Last updated: 2026-10-10
+> Status: v1 (M0) — Last updated: 2026-10-12
 
 ## Register
 
@@ -20,10 +20,11 @@
 | R11 | **Bus factor of one** | Medium | High | ADRs, contracts and README kept current; `docker compose up` reproduces production; configuration documented in ARCHITECTURE.md | Maintainer | Accepted |
 | R12 | **Data loss on the single host** (disk failure, bad migration) | Medium | Low | Named volume; nightly `pg_dump` with a tested restore (Day 6); additive-only migrations; data is low-value except for prompt analytics | Maintainer | Open |
 | R13 | **Embed player changes** (third-party cookie restrictions, preview availability) | Low | Medium | Previews are optional; tracks still link to Spotify; verify Day 1 | Maintainer | Open — verified 2026-10-12 |
-| R14 | **Turn latency exceeds 15 s p95** (LLM + 20–40 searches + backfill, host far from API regions) | Medium | Medium | Concurrent search (5), 20 s LLM timeout, backfill only for misses, `turn_duration_seconds` histogram; UI progress state | Maintainer | Open |
+| R14 | **Turn latency exceeds 15 s p95** (LLM + 20–40 searches + backfill, host far from API regions) | Medium | Medium | Concurrent search (5), 20 s LLM timeout, backfill only for misses, `turn_duration_seconds` histogram; UI progress state | Maintainer | Open — 2026-10-12: Gemini Flash alone takes 9–17 s for 10–20 tracks with prompt v1 |
 | R15 | **Spotify rate limits (429) under concurrent use** | Medium | Medium | Per-IP limits bound concurrency; honor `Retry-After` once; `catalog_search_total{result="rate_limited"}` metric; ADR-006 revisit at > 1 % | Maintainer | Open |
 | R16 | **Unbounded database growth** with indefinite retention | Low | Low | Retention job ready behind `RETENTION_DAYS` (ADR-014); enable at 5 GB | Maintainer | Accepted |
 | R17 | **Offensive LLM-generated titles reachable via share links** | Medium | Low | Provider safety filters, guardrail prompt, length limits, `noindex`, no public listing of shares | Maintainer | Open |
+| R18 | **LLM provider overloaded** (HTTP 503 "high demand" observed repeatedly on Flash-class models during Day 1 checks) | Medium | High | One delayed retry on overload, optionally on `GEMINI_FALLBACK_MODEL` (ADR-003); typed `LLM_UNAVAILABLE` with a localized "try again" state; failure reason recorded for metrics | Maintainer | Open |
 
 Status values: Open / Mitigated / Closed / Accepted.
 
@@ -31,7 +32,7 @@ Status values: Open / Mitigated / Closed / Accepted.
 
 | Likelihood ↓ / Impact → | Low | Medium | High |
 |-------------------------|-----|--------|------|
-| **High** | | R4, R6, R9, R11 | R3, R5 |
+| **High** | | R4, R6, R9, R11, R18 | R3, R5 |
 | **Medium** | R13 | R14, R15 | R1, R10 |
 | **Low** | R16 | R12, R17 | R2, R7, R8 |
 

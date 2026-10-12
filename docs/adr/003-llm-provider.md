@@ -40,6 +40,7 @@ Rules:
 - The model id comes from configuration (`GEMINI_MODEL`); default is a Flash-class model.
 - Output is validated in Go against the same schema (track count 1–30, non-empty fields, enum values). An invalid response is retried **once**; a second failure returns `LLM_INVALID_OUTPUT`.
 - Timeout: 20 s per call. No streaming in the MVP.
+- Transient provider errors (amended 2026-10-12): overload responses (HTTP 500/502/503/504, e.g. the 503 "model is experiencing high demand" seen during Day 1 checks) are retried **once** after a short delay (1 s), on `GEMINI_FALLBACK_MODEL` when it is set, otherwise on the same model. Timeouts and quota errors (HTTP 429) are not retried: a second 20 s wait breaks the latency budget and an exhausted quota fails again. Anything still failing returns `LLM_UNAVAILABLE`. `turns.llm_model` records the model that actually answered.
 - Every call records model id, token counts and latency on the turn (see db-schema) and in metrics.
 
 ### Positive consequences
