@@ -54,3 +54,35 @@ func TestBuild(t *testing.T) {
 		t.Error("Build accepted an unknown version")
 	}
 }
+
+func TestBuildBackfill(t *testing.T) {
+	base, err := Build("v1", "en", "rainy night")
+	if err != nil {
+		t.Fatal(err)
+	}
+	playlist := llm.Playlist{Status: llm.StatusOK, Title: "Rain", Tracks: []llm.Track{{Artist: "A", Title: "T", Why: "W"}}}
+	notFound := []llm.Track{{Artist: "Ghost <b>", Title: "Nope", Why: "x"}}
+	req, err := BuildBackfill(base, playlist, notFound, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if req.System != base.System || len(req.Messages) != 3 || len(base.Messages) != 1 {
+		t.Fatalf("messages = %d (base %d)", len(req.Messages), len(base.Messages))
+	}
+	if req.Messages[1].Role != llm.RoleModel || !strings.Contains(req.Messages[1].Text, `"title":"Rain"`) {
+		t.Errorf("model message = %+v", req.Messages[1])
+	}
+	last := req.Messages[2]
+	for _, want := range []string{"<not_found>", "1. Ghost &lt;b&gt; — Nope", "exactly 2 replacement"} {
+		if last.Role != llm.RoleUser || !strings.Contains(last.Text, want) {
+			t.Errorf("follow-up missing %q:\n%s", want, last.Text)
+		}
+	}
+	tracks := req.Schema["properties"].(map[string]any)["tracks"].(map[string]any)
+	if tracks["maxItems"] != 2 {
+		t.Errorf("schema = %v", req.Schema)
+	}
+	if _, err := BuildBackfill(base, playlist, nil, 0); err == nil {
+		t.Error("accepted n = 0")
+	}
+}

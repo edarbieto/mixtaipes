@@ -4,6 +4,8 @@ package prompts
 
 import (
 	"embed"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"strconv"
@@ -66,4 +68,35 @@ func Build(version, locale, userText string) (llm.Request, error) {
 		Messages: []llm.Message{{Role: llm.RoleUser, Text: msg}},
 		Schema:   llm.PlaylistSchema,
 	}, nil
+}
+
+// BuildBackfill continues a generation request with the model's own playlist
+// and asks for n replacement tracks (ADR-006). Its inputs carry only LLM
+// text: tracks that were not found are listed as the model wrote them (ADR-007).
+func BuildBackfill(base llm.Request, playlist llm.Playlist, notFound []llm.Track, n int) (llm.Request, error) {
+	if n < 1 {
+		return llm.Request{}, errors.New("backfill needs at least one track")
+	}
+	own, err := json.Marshal(playlist)
+	if err != nil {
+		return llm.Request{}, fmt.Errorf("encode playlist: %w", err)
+	}
+	var msg strings.Builder
+	fmt.Fprintf(&msg, "%d track(s) of your playlist could not be used: they were not found in the catalog or duplicated another track.\n", n)
+	if len(notFound) > 0 {
+		msg.WriteString("<not_found>\n")
+		for i, t := range notFound {
+			fmt.Fprintf(&msg, "%d. %s — %s\n", i+1, dataEscaper.Replace(t.Artist), dataEscaper.Replace(t.Title))
+		}
+		msg.WriteString("</not_found>\n")
+	}
+	fmt.Fprintf(&msg, "Propose exactly %d replacement track(s).", n)
+
+	req := base
+	req.Messages = append(append([]llm.Message{}, base.Messages...),
+		llm.Message{Role: llm.RoleModel, Text: string(own)},
+		llm.Message{Role: llm.RoleUser, Text: msg.String()},
+	)
+	req.Schema = llm.ReplacementsSchema(n)
+	return req, nil
 }

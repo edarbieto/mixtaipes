@@ -24,7 +24,6 @@ var (
 	leadingThe = regexp.MustCompile(`^the\s+`)
 )
 
-
 // apostrophes are removed rather than split on, so "Can't" equals "Cant".
 var apostrophes = strings.NewReplacer("'", "", "’", "", "`", "")
 
