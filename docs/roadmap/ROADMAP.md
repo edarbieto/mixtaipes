@@ -2,7 +2,7 @@
 
 > Milestones toward a public instance where anyone can turn a sentence into a verified, copyable playlist.
 > Tasks are checkbox-tracked. The MVP is a one-week sprint; W1 is broken down by day.
-> Status: v1 (M0) — Last updated: 2026-10-12
+> Status: **paused** after W1 · Day 2 — Spotify Development Mode and LLM free-tier quotas are too small for a shared hosted instance (R1, R3; see README). Last updated: 2026-10-12
 
 ## Now / Next / Later
 
@@ -41,14 +41,14 @@
 - [x] `llm.Provider` + Gemini adapter with schema, validation and single retry (ADR-003)
 - [x] `prompts/v1.md`: role, schema, count rules (20 default, ≤ 30), diversity, locale, refusals, delimited input (ADR-004)
 - [x] `catalog.Catalog` + Spotify adapter: token cache, field-filtered search, fallback query, normalization + fuzzy match, concurrency 5, 429 handling (ADR-006)
-- [ ] Backfill round for misses using only LLM text (ADR-007), with an import-boundary test
-- [ ] `evals/cases.yaml` with ~25 cases; `cmd/eval` printing the ADR-005 metrics
-- [ ] First evaluation run of v1 recorded
+- [x] Backfill round for misses using only LLM text (ADR-007), with an import-boundary test
+- [x] `evals/cases.yaml` with ~25 cases; `cmd/eval` printing the ADR-005 metrics
+- [ ] First evaluation run of v1 recorded — partial run 2026-10-12: 17/27 cases, the other 10 stopped by a Spotify `429` (`Retry-After` ≈ 21 h)
 
 ### W1 · Day 3: API and persistence
 - [ ] `POST /v1/mixtapes`, `POST /v1/mixtapes/{id}/turns` (`202` + pending turn), `GET /v1/mixtapes`, `GET /v1/mixtapes/{id}` per contract
 - [ ] Turn workers (ADR-015): migration `000002` (turn states, lease, progress), claim with `FOR UPDATE SKIP LOCKED`, lease reclaim, backoff retries on LLM overload/timeout, progress updates, graceful shutdown
-- [ ] Refinement context builder (original request + prior refinements + latest `llm_output`) (ADR-008)
+- [ ] Refinement context builder (original request + prior refinements + latest `llm_output`) (ADR-008) — prompt builder done (`prompts.BuildRefine`); loading from the database remains
 - [ ] Client cookie middleware with hashed storage; ownership checks; JSON content-type guard (ADR-010)
 - [ ] Per-IP token bucket with trusted-proxy handling; daily LLM-call cap; `Retry-After`
 - [ ] Market resolution from `Accept-Language` region with `SPOTIFY_MARKET` fallback (ADR-006), with table-driven tests

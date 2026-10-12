@@ -68,3 +68,40 @@ func TestGeneratePlaylist(t *testing.T) {
 		})
 	}
 }
+
+func TestGenerateReplacements(t *testing.T) {
+	two := `{"tracks":` + tracksJSON(2) + `}`
+	tests := []struct {
+		name       string
+		results    []fakeResult
+		n          int
+		wantErr    error
+		wantTracks int
+		wantCalls  int
+	}{
+		{name: "valid", results: []fakeResult{{json: two}}, n: 2, wantTracks: 2, wantCalls: 1},
+		{name: "keeps at most n", results: []fakeResult{{json: two}}, n: 1, wantTracks: 1, wantCalls: 1},
+		{name: "retries empty answer once", results: []fakeResult{{json: `{"tracks":[]}`}, {json: two}}, n: 2, wantTracks: 2, wantCalls: 2},
+		{name: "invalid twice", results: []fakeResult{{json: `{}`}, {json: `{}`}}, n: 2, wantErr: ErrInvalidOutput, wantCalls: 2},
+		{name: "blocked yields nothing", results: []fakeResult{{err: ErrBlocked}}, n: 2, wantCalls: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := &fakeProvider{results: tt.results}
+			tracks, usage, err := GenerateReplacements(context.Background(), p, Request{}, tt.n)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if len(tracks) != tt.wantTracks || usage.Calls != tt.wantCalls {
+				t.Errorf("tracks = %d, calls = %d; want %d, %d", len(tracks), usage.Calls, tt.wantTracks, tt.wantCalls)
+			}
+		})
+	}
+}
+
+func TestReplacementsSchema(t *testing.T) {
+	tracks := ReplacementsSchema(3)["properties"].(map[string]any)["tracks"].(map[string]any)
+	if tracks["minItems"] != 3 || tracks["maxItems"] != 3 {
+		t.Errorf("tracks schema = %v", tracks)
+	}
+}

@@ -52,6 +52,32 @@ type Playlist struct {
 	Suggestions   []string       `json:"suggestions"`
 }
 
+var trackSchema = map[string]any{
+	"type": "object",
+	"properties": map[string]any{
+		"artist": map[string]any{"type": "string"},
+		"title":  map[string]any{"type": "string"},
+		"why":    map[string]any{"type": "string"},
+	},
+	"required": []string{"artist", "title", "why"},
+}
+
+// ReplacementsSchema is the JSON Schema for a backfill answer of exactly n tracks.
+func ReplacementsSchema(n int) map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"tracks": map[string]any{
+				"type":     "array",
+				"minItems": n,
+				"maxItems": n,
+				"items":    trackSchema,
+			},
+		},
+		"required": []string{"tracks"},
+	}
+}
+
 // PlaylistSchema is the JSON Schema sent to the provider for structured output.
 var PlaylistSchema = map[string]any{
 	"type": "object",
@@ -74,15 +100,7 @@ var PlaylistSchema = map[string]any{
 		"tracks": map[string]any{
 			"type":     "array",
 			"maxItems": MaxTracks,
-			"items": map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"artist": map[string]any{"type": "string"},
-					"title":  map[string]any{"type": "string"},
-					"why":    map[string]any{"type": "string"},
-				},
-				"required": []string{"artist", "title", "why"},
-			},
+			"items":    trackSchema,
 		},
 		"suggestions": map[string]any{
 			"type":     "array",
@@ -130,21 +148,46 @@ func ParsePlaylist(raw []byte) (Playlist, error) {
 	if len(p.Tracks) == 0 {
 		return Playlist{}, errors.New("no tracks")
 	}
-	if len(p.Tracks) > MaxTracks {
-		p.Tracks = p.Tracks[:MaxTracks]
+	tracks, err := cleanTracks(p.Tracks, MaxTracks)
+	if err != nil {
+		return Playlist{}, err
 	}
-	for i, t := range p.Tracks {
+	p.Tracks = tracks
+	return p, nil
+}
+
+// ParseReplacements decodes and validates a backfill answer, keeping at most n tracks.
+func ParseReplacements(raw []byte, n int) ([]Track, error) {
+	var r struct {
+		Tracks []Track `json:"tracks"`
+	}
+	if err := json.Unmarshal(raw, &r); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	if len(r.Tracks) == 0 {
+		return nil, errors.New("no tracks")
+	}
+	return cleanTracks(r.Tracks, n)
+}
+
+// cleanTracks trims every field, keeps at most limit tracks and rejects empty fields.
+func cleanTracks(in []Track, limit int) ([]Track, error) {
+	if len(in) > limit {
+		in = in[:limit]
+	}
+	out := make([]Track, len(in))
+	for i, t := range in {
 		t = Track{
 			Artist: strings.TrimSpace(t.Artist),
 			Title:  strings.TrimSpace(t.Title),
 			Why:    strings.TrimSpace(t.Why),
 		}
 		if t.Artist == "" || t.Title == "" || t.Why == "" {
-			return Playlist{}, fmt.Errorf("track %d has an empty field", i)
+			return nil, fmt.Errorf("track %d has an empty field", i)
 		}
-		p.Tracks[i] = t
+		out[i] = t
 	}
-	return p, nil
+	return out, nil
 }
 
 // Refused returns a refusal playlist for the given reason.
