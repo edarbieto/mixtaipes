@@ -92,3 +92,17 @@ func TestSummarize(t *testing.T) {
 		t.Errorf("empty summary does not marshal: %v", err)
 	}
 }
+
+func TestRetryable(t *testing.T) {
+	for reason, want := range map[llm.Reason]bool{
+		llm.ReasonOverloaded: true, llm.ReasonTimeout: true,
+		llm.ReasonRateLimited: false, llm.ReasonUpstream: false,
+	} {
+		if got := retryable(&llm.UnavailableError{Reason: reason}); got != want {
+			t.Errorf("retryable(%s) = %v, want %v", reason, got, want)
+		}
+	}
+	if retryable(llm.ErrInvalidOutput) {
+		t.Error("invalid output must not be retried")
+	}
+}

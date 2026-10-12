@@ -22,14 +22,15 @@ import (
 	"github.com/edarbieto/mixtaipes/prompts"
 )
 
-// Retries of a turn after the provider stays unavailable, mirroring the
-// worker backoff of ADR-015.
+// Retries of a turn after a provider overload or timeout, mirroring the
+// worker backoff of ADR-015. Quota errors are not retried.
 var retryBackoff = []time.Duration{5 * time.Second, 15 * time.Second}
 
 type options struct {
 	casesPath string
 	outDir    string
 	version   string
+	model     string
 	market    string
 	only      string
 	pause     time.Duration
@@ -41,6 +42,7 @@ func main() {
 	flag.StringVar(&o.casesPath, "cases", "evals/cases.yaml", "evaluation cases")
 	flag.StringVar(&o.outDir, "out", "evals/results", "directory for the JSON results")
 	flag.StringVar(&o.version, "prompt", prompts.Latest(), "prompt version")
+	flag.StringVar(&o.model, "model", os.Getenv("GEMINI_MODEL"), "Gemini model (default GEMINI_MODEL)")
 	flag.StringVar(&o.market, "market", envOr("SPOTIFY_MARKET", "US"), "Spotify market")
 	flag.StringVar(&o.only, "only", "", "comma-separated case ids or categories to run")
 	flag.DurationVar(&o.pause, "pause", 3*time.Second, "pause between turns (provider rate limits)")
@@ -67,14 +69,17 @@ func run(ctx context.Context, o options) error {
 	if _, err := prompts.Load(o.version); err != nil {
 		return err
 	}
-	env, err := requireEnv("GEMINI_API_KEY", "GEMINI_MODEL", "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET")
+	env, err := requireEnv("GEMINI_API_KEY", "SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET")
 	if err != nil {
 		return err
+	}
+	if o.model == "" {
+		return errors.New("set GEMINI_MODEL or -model")
 	}
 	pipeline := mixtape.Pipeline{
 		LLM: llm.NewGemini(llm.GeminiConfig{
 			APIKey:        env["GEMINI_API_KEY"],
-			Model:         env["GEMINI_MODEL"],
+			Model:         o.model,
 			FallbackModel: os.Getenv("GEMINI_FALLBACK_MODEL"),
 		}),
 		Catalog: catalog.NewSpotify(catalog.SpotifyConfig{
@@ -85,7 +90,7 @@ func run(ctx context.Context, o options) error {
 
 	report := Report{
 		PromptVersion: o.version,
-		Model:         env["GEMINI_MODEL"],
+		Model:         o.model,
 		Market:        o.market,
 		StartedAt:     time.Now().UTC(),
 	}
@@ -101,6 +106,10 @@ func run(ctx context.Context, o options) error {
 		res := runCase(ctx, pipeline, o, c)
 		report.Cases = append(report.Cases, res)
 		printCase(res, o.tracks)
+		if quotaExhausted(res) {
+			fmt.Println("provider quota exhausted (HTTP 429); stopping and reporting completed cases")
+			break
+		}
 	}
 	report.Summary = summarize(cases, report.Cases)
 	printSummary(report.Summary)
@@ -138,6 +147,7 @@ type TurnResult struct {
 	Status                llm.Status        `json:"status,omitempty"`
 	RefusalReason         llm.RefusalReason `json:"refusal_reason,omitempty"`
 	Error                 string            `json:"error,omitempty"`
+	RateLimited           bool              `json:"rate_limited,omitempty"`
 	BackfillError         string            `json:"backfill_error,omitempty"`
 	Attempts              int               `json:"attempts"`
 	Title                 string            `json:"title,omitempty"`
@@ -227,7 +237,7 @@ func runTurn(ctx context.Context, p mixtape.Pipeline, market, text string, req l
 		turn.Attempts = attempt + 1
 		out, err = p.Run(ctx, market, req)
 		spent.Add(out.LLM)
-		if !errors.Is(err, llm.ErrUnavailable) || attempt == len(retryBackoff) {
+		if !retryable(err) || attempt == len(retryBackoff) {
 			break
 		}
 		sleep(ctx, retryBackoff[attempt])
@@ -239,6 +249,8 @@ func runTurn(ctx context.Context, p mixtape.Pipeline, market, text string, req l
 	turn.OutputTokens = spent.OutputTokens
 	if err != nil {
 		turn.Error = err.Error()
+		var ue *llm.UnavailableError
+		turn.RateLimited = errors.As(err, &ue) && ue.Reason == llm.ReasonRateLimited
 		return turn, out
 	}
 
@@ -266,6 +278,21 @@ func runTurn(ctx context.Context, p mixtape.Pipeline, market, text string, req l
 		})
 	}
 	return turn, out
+}
+
+// retryable reports provider overloads and timeouts (ADR-015).
+func retryable(err error) bool {
+	var ue *llm.UnavailableError
+	return errors.As(err, &ue) && (ue.Reason == llm.ReasonOverloaded || ue.Reason == llm.ReasonTimeout)
+}
+
+func quotaExhausted(c CaseResult) bool {
+	for _, t := range c.Turns {
+		if t.RateLimited {
+			return true
+		}
+	}
+	return false
 }
 
 func printCase(c CaseResult, tracks bool) {
