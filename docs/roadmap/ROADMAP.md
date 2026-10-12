@@ -35,7 +35,7 @@
 - [x] Repository skeleton per ADR-001; `go.mod`, Astro app in `web/`, MIT `LICENSE`, README stub
 - [x] `compose.yaml` (app + db), multi-stage `Dockerfile`, `/healthz`, `/readyz`
 - [x] Initial `golang-migrate` migration (`000001_init.up.sql` / `.down.sql`) matching `db-schema.md`; `internal/store` on `pgx/v5`
-- [ ] CI: vet, lint, test, web build, image build — green on `master` (default branch)
+- [x] CI: vet, lint, test, web build, image build — green on `master` (default branch)
 
 ### W1 · Day 2: LLM + catalog core, prompt v1
 - [ ] `llm.Provider` + Gemini adapter with schema, validation and single retry (ADR-003)
