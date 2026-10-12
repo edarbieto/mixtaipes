@@ -58,14 +58,58 @@ var dataEscaper = strings.NewReplacer("<", "&lt;", ">", "&gt;")
 // Build assembles a first-turn request: the system prompt of the given
 // version and the user's text wrapped as data in <user_request>.
 func Build(version, locale, userText string) (llm.Request, error) {
+	var msg strings.Builder
+	msg.WriteString("Locale: " + locale + "\n")
+	writeElement(&msg, "user_request", userText)
+	return newRequest(version, msg.String())
+}
+
+// Refinement is the context of a refine turn (ADR-008). It is built only from
+// stored user prompts and the latest ok turn's llm_output (ADR-007).
+type Refinement struct {
+	Original    string
+	Previous    []string
+	Current     llm.Playlist
+	Instruction string
+}
+
+// BuildRefine assembles a refine-turn request: original request, previous
+// refinements, the current playlist as the model wrote it, and the new
+// instruction, all wrapped as data.
+func BuildRefine(version, locale string, r Refinement) (llm.Request, error) {
+	var msg strings.Builder
+	msg.WriteString("Locale: " + locale + "\n")
+	writeElement(&msg, "original_request", r.Original)
+	if len(r.Previous) > 0 {
+		var prev strings.Builder
+		for i, p := range r.Previous {
+			fmt.Fprintf(&prev, "%d. %s\n", i+1, strings.TrimSpace(p))
+		}
+		writeElement(&msg, "previous_refinements", prev.String())
+	}
+	var cur strings.Builder
+	fmt.Fprintf(&cur, "Title: %s\n", r.Current.Title)
+	for i, t := range r.Current.Tracks {
+		fmt.Fprintf(&cur, "%d. %s — %s — %s\n", i+1, t.Artist, t.Title, t.Why)
+	}
+	writeElement(&msg, "current_playlist", cur.String())
+	writeElement(&msg, "user_request", r.Instruction)
+	return newRequest(version, msg.String())
+}
+
+// writeElement writes text as an escaped, delimited data element.
+func writeElement(b *strings.Builder, name, text string) {
+	fmt.Fprintf(b, "<%s>\n%s\n</%s>\n", name, dataEscaper.Replace(strings.TrimSpace(text)), name)
+}
+
+func newRequest(version, userMessage string) (llm.Request, error) {
 	system, err := Load(version)
 	if err != nil {
 		return llm.Request{}, err
 	}
-	msg := "Locale: " + locale + "\n<user_request>\n" + dataEscaper.Replace(strings.TrimSpace(userText)) + "\n</user_request>"
 	return llm.Request{
 		System:   system,
-		Messages: []llm.Message{{Role: llm.RoleUser, Text: msg}},
+		Messages: []llm.Message{{Role: llm.RoleUser, Text: strings.TrimSuffix(userMessage, "\n")}},
 		Schema:   llm.PlaylistSchema,
 	}, nil
 }

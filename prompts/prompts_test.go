@@ -86,3 +86,45 @@ func TestBuildBackfill(t *testing.T) {
 		t.Error("accepted n = 0")
 	}
 }
+
+func TestBuildRefine(t *testing.T) {
+	r := Refinement{
+		Original: "music for studying",
+		Previous: []string{"more instrumental", " switch to jazz "},
+		Current: llm.Playlist{Title: "Study Jazz", Tracks: []llm.Track{
+			{Artist: "Bill Evans", Title: "Peace Piece", Why: "calm <piano>"},
+		}},
+		Instruction: "slower",
+	}
+	req, err := BuildRefine("v1", "es", r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `Locale: es
+<original_request>
+music for studying
+</original_request>
+<previous_refinements>
+1. more instrumental
+2. switch to jazz
+</previous_refinements>
+<current_playlist>
+Title: Study Jazz
+1. Bill Evans — Peace Piece — calm &lt;piano&gt;
+</current_playlist>
+<user_request>
+slower
+</user_request>`
+	if got := req.Messages[0].Text; got != want {
+		t.Errorf("message =\n%s\nwant\n%s", got, want)
+	}
+	if req.Schema["type"] != llm.PlaylistSchema["type"] {
+		t.Error("playlist schema not attached")
+	}
+
+	r.Previous = nil
+	req, _ = BuildRefine("v1", "en", r)
+	if strings.Contains(req.Messages[0].Text, "previous_refinements") {
+		t.Error("empty previous refinements should be omitted")
+	}
+}
